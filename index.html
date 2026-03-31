@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pro Finance Manager | YST</title>
+    <link rel="icon" type="image/png" href="logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --primary: #6366f1;
+            --secondary: #a855f7;
+            --success: #10b981;
+            --danger: #f43f5e;
+            --bg-light: #f8fafc;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-light);
+            color: #1e293b;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .view-content { display: none; padding-bottom: 140px; }
+        .view-content.active { display: block; animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+
+        #login-screen { display: flex; }
+        #app-interface { display: none; }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .nav-item { @apply transition-all duration-300 relative text-slate-400; }
+        .nav-item.active { color: var(--primary); }
+        .nav-item.active::after {
+            content: ''; position: absolute; bottom: -8px; width: 4px; height: 4px; background: var(--primary); border-radius: 50%;
+        }
+
+        .method-btn {
+            @apply flex-1 py-4 rounded-2xl border-2 border-transparent bg-white text-slate-400 font-bold transition-all flex flex-col items-center justify-center gap-2;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+        }
+        
+        .method-btn.active-income { @apply border-emerald-500 bg-emerald-50 text-emerald-700; transform: translateY(-2px); }
+        .method-btn.active-expense { @apply border-rose-500 bg-rose-50 text-rose-700; transform: translateY(-2px); }
+        
+        .floating-label { @apply text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block; }
+
+        .sync-active { @apply bg-emerald-500; }
+        .sync-pending { @apply bg-amber-500; }
+
+        @media print {
+            nav, header, .no-print, #login-screen { display: none !important; }
+            #app-interface { display: block !important; }
+            .view-content { display: block !important; padding: 0 !important; }
+            body { background: white; }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <div id="login-screen" class="fixed inset-0 z-[100] bg-slate-50 flex-col items-center justify-center p-6 text-center">
+        <div class="w-20 h-20 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-indigo-200 mb-8">
+            <i class="fa-solid fa-indian-rupee-sign text-white text-3xl"></i>
+        </div>
+        <h1 class="text-3xl font-black text-slate-900 mb-2">Finance Pro</h1>
+        <p class="text-slate-500 mb-10 max-w-xs">Manage your wealth with secure cloud synchronization.</p>
+        
+        <button id="loginBtn" class="flex items-center gap-4 bg-white border border-slate-200 px-8 py-4 rounded-2xl shadow-sm hover:bg-slate-50 transition-all active:scale-95 text-slate-700 font-bold">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5" alt="">
+            <span>Continue with Google</span>
+        </button>
+        
+        <p class="mt-8 text-[10px] font-bold text-slate-400 uppercase tracking-widest">YST®</p>
+    </div>
+
+    <div id="app-interface">
+        <header class="sticky top-0 z-50 bg-white/70 backdrop-blur-lg border-b border-slate-100 p-4">
+            <div class="max-w-4xl mx-auto flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100">
+                        <i class="fa-solid fa-indian-rupee-sign text-white text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 id="viewTitle" class="text-lg font-extrabold text-slate-800 tracking-tight leading-tight">Dashboard</h1>
+                        <div class="flex items-center gap-1.5">
+                            <span id="syncIndicator" class="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                            <span id="syncStatus" class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Syncing</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-3">
+                    <div class="text-right hidden sm:block">
+                        <p id="userName" class="text-xs font-bold text-slate-800 leading-none mb-0.5">User</p>
+                        <button id="logoutBtn" class="text-[9px] font-black text-rose-500 uppercase tracking-widest hover:underline">Sign Out</button>
+                    </div>
+                    <img id="userPhoto" src="https://ui-avatars.com/api/?name=User" class="w-10 h-10 rounded-full border-2 border-white shadow-sm bg-slate-100" alt="">
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-5xl mx-auto p-5">
+            <section id="view-dashboard" class="view-content active">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+                    <div class="md:col-span-2 bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl shadow-indigo-200">
+                        <div class="relative z-10">
+                            <div class="flex justify-between items-start mb-10">
+                                <div>
+                                    <p class="text-indigo-300 text-xs font-bold uppercase tracking-widest mb-1">Total Balance</p>
+                                    <h2 class="text-4xl font-black flex items-center gap-2" id="dashBalance">₹0.00</h2>
+                                </div>
+                                <div class="bg-white/10 p-3 rounded-2xl backdrop-blur-md">
+                                    <i class="fa-solid fa-vault text-xl"></i>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 pt-6 border-t border-white/10">
+                                <div>
+                                    <p class="text-[10px] uppercase font-black text-indigo-300/60 tracking-widest mb-1">Earnings</p>
+                                    <p class="text-xl font-bold text-emerald-400" id="dashIncome">₹0.00</p>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] uppercase font-black text-indigo-300/60 tracking-widest mb-1">Expenses</p>
+                                    <p class="text-xl font-bold text-rose-400" id="dashExpense">₹0.00</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 blur-[100px] rounded-full"></div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+                            <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-xl"><i class="fa-brands fa-google-pay"></i></div>
+                            <div>
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">GPay Wallet</p>
+                                <h3 class="text-lg font-bold text-slate-800" id="dashGpay">₹0.00</h3>
+                            </div>
+                        </div>
+                        <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
+                            <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-xl"><i class="fa-solid fa-wallet"></i></div>
+                            <div>
+                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cash Balance</p>
+                                <h3 class="text-lg font-bold text-slate-800" id="dashCash">₹0.00</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                    <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider mb-6">Spending Analytics</h3>
+                    <div class="h-[280px]"><canvas id="expenseChart"></canvas></div>
+                </div>
+            </section>
+
+            <section id="view-income" class="view-content max-w-xl mx-auto">
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-50">
+                    <div class="text-center mb-8">
+                        <div class="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-3xl flex items-center justify-center text-2xl mx-auto mb-4"><i class="fa-solid fa-plus"></i></div>
+                        <h3 class="text-2xl font-black text-slate-800">Add Income</h3>
+                    </div>
+                    <form id="incomeForm" class="space-y-6">
+                        <div>
+                            <span class="floating-label">Account</span>
+                            <div class="flex gap-4">
+                                <button type="button" onclick="setMethod('income', 'gpay')" id="incGpay" class="method-btn active-income"><i class="fa-brands fa-google-pay text-2xl"></i><span>GPay</span></button>
+                                <button type="button" onclick="setMethod('income', 'cash')" id="incCash" class="method-btn"><i class="fa-solid fa-wallet text-xl"></i><span>Cash</span></button>
+                            </div>
+                        </div>
+                        <div><span class="floating-label">Amount</span><input type="number" step="0.01" id="incAmount" required class="w-full text-4xl font-black p-6 bg-slate-50 border-none rounded-3xl outline-none" placeholder="0.00"></div>
+                        <div><span class="floating-label">Source</span><input type="text" id="incDesc" required class="w-full p-5 bg-slate-50 border-none rounded-2xl outline-none font-semibold" placeholder="e.g. Salary"></div>
+                        <div><span class="floating-label">Date</span><input type="date" id="incDate" required class="w-full p-5 bg-slate-50 border-none rounded-2xl outline-none font-semibold"></div>
+                        <button type="submit" id="incSubmit" class="w-full py-6 bg-emerald-600 text-white rounded-3xl font-black uppercase tracking-widest shadow-lg shadow-emerald-100">Save Income</button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="view-expense" class="view-content max-w-xl mx-auto">
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-50">
+                    <div class="text-center mb-8">
+                        <div class="w-16 h-16 bg-rose-50 text-rose-500 rounded-3xl flex items-center justify-center text-2xl mx-auto mb-4"><i class="fa-solid fa-minus"></i></div>
+                        <h3 class="text-2xl font-black text-slate-800">Add Expense</h3>
+                    </div>
+                    <form id="expForm" class="space-y-6">
+                        <div>
+                            <span class="floating-label">Method</span>
+                            <div class="flex gap-4">
+                                <button type="button" onclick="setMethod('expense', 'gpay')" id="expGpay" class="method-btn active-expense"><i class="fa-brands fa-google-pay text-2xl"></i><span>UPI</span></button>
+                                <button type="button" onclick="setMethod('expense', 'cash')" id="expCash" class="method-btn"><i class="fa-solid fa-wallet text-xl"></i><span>Cash</span></button>
+                            </div>
+                        </div>
+                        <div><span class="floating-label">Amount</span><input type="number" step="0.01" id="expAmount" required class="w-full text-4xl font-black p-6 bg-slate-50 border-none rounded-3xl outline-none" placeholder="0.00"></div>
+                        <div><span class="floating-label">Details</span><input type="text" id="expDesc" required class="w-full p-5 bg-slate-50 border-none rounded-2xl outline-none font-semibold" placeholder="e.g. Grocery"></div>
+                        <div><span class="floating-label">Date</span><input type="date" id="expDate" required class="w-full p-5 bg-slate-50 border-none rounded-2xl outline-none font-semibold"></div>
+                        <button type="submit" id="expSubmit" class="w-full py-6 bg-rose-600 text-white rounded-3xl font-black uppercase tracking-widest shadow-lg shadow-rose-100">Save Expense</button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="view-ledger" class="view-content">
+                <div class="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+                    <div class="p-8 bg-slate-900 text-white flex flex-col md:flex-row justify-between items-center gap-6">
+                        <h3 class="font-black text-2xl">Financial Statement</h3>
+                        <div class="flex gap-2">
+                            <button onclick="exportToExcel()" class="px-5 py-3 bg-emerald-500 text-white rounded-2xl font-bold text-xs">Export CSV</button>
+                            <button onclick="window.print()" class="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center"><i class="fa-solid fa-print"></i></button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="bg-slate-50 border-b">
+                                <tr class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <th class="p-5 text-left">Date</th>
+                                    <th class="p-5 text-left">Details</th>
+                                    <th class="p-5 text-right">In</th>
+                                    <th class="p-5 text-right">Out</th>
+                                    <th class="p-5 text-right">Balance</th>
+                                    <th class="p-5 text-center no-print">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ledgerBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <nav class="fixed bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-lg bg-white/90 backdrop-blur-xl rounded-[2.5rem] shadow-2xl z-50 px-4 py-2 border border-white/50 no-print">
+            <div class="flex justify-around items-center h-16">
+                <button onclick="switchView('income')" class="nav-item flex flex-col items-center gap-1 flex-1" data-view="income"><i class="fa-solid fa-arrow-down-long text-lg"></i><span class="text-[8px] font-bold uppercase">Income</span></button>
+                <button onclick="switchView('expense')" class="nav-item flex flex-col items-center gap-1 flex-1" data-view="expense"><i class="fa-solid fa-arrow-up-long text-lg"></i><span class="text-[8px] font-bold uppercase">Expense</span></button>
+                <button onclick="switchView('dashboard')" class="nav-item active flex flex-col items-center gap-1 flex-1" data-view="dashboard"><i class="fa-solid fa-house text-lg"></i><span class="text-[8px] font-bold uppercase">Home</span></button>
+                <button onclick="switchView('ledger')" class="nav-item flex flex-col items-center gap-1 flex-1" data-view="ledger"><i class="fa-solid fa-receipt text-lg"></i><span class="text-[8px] font-bold uppercase">Ledger</span></button>
+            </div>
+        </nav>
+    </div>
+
+    <script>
+        const SUPABASE_URL = "https://pesrggukopzmjxqjxzrp.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlc3JnZ3Vrb3B6bWp4cWp4enJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4Nzc4OTAsImV4cCI6MjA5MDQ1Mzg5MH0.eloBUJ6wxtf_ZGtQ_XqZR2_rglAQvFWtnmCPDk5Gdkw";
+        
+       const client = supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY
+);
+
+        let user = null, transactions = [], expenseChart = null;
+        let selectedIncMethod = 'gpay', selectedExpMethod = 'gpay';
+
+        const loginBtn = document.getElementById('loginBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const loginScreen = document.getElementById('login-screen');
+        const appInterface = document.getElementById('app-interface');
+
+       loginBtn.onclick = async () => {
+    if (!client) { 
+        alert("Client not initialized"); 
+        return; 
+    }
+
+    const { error } = await client.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+            redirectTo: window.location.origin
+        }
+    });
+
+    if (error) alert(error.message);
+};
+
+        if (client) {
+            logoutBtn.onclick = async () => await client.auth.signOut();
+
+            client.auth.onAuthStateChange((event, session) => {
+                if (session) {
+                    user = session.user;
+                    loginScreen.style.display = 'none';
+                    appInterface.style.display = 'block';
+                    document.getElementById('userName').textContent = user.user_metadata.full_name || user.email;
+                    document.getElementById('userPhoto').src = user.user_metadata.avatar_url || `https://ui-avatars.com/api/?name=${user.email}`;
+                    setSyncStatus('Online', 'sync-active');
+                    fetchTransactions();
+                } else {
+                    user = null;
+                    loginScreen.style.display = 'flex';
+                    appInterface.style.display = 'none';
+                    setSyncStatus('Offline', 'sync-pending');
+                }
+            });
+        }
+
+        async function fetchTransactions() {
+             if (!user) return;
+
+    const { data, error } = await client
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)   // 🔥 THIS LINE IS CRITICAL
+        .order('date', { ascending: true });
+
+    if (error) {
+        console.error(error);
+        return;
+    }
+
+    transactions = data;
+    updateUI();
+        }
+
+        const setSyncStatus = (text, className) => {
+            document.getElementById('syncStatus').textContent = text;
+            document.getElementById('syncIndicator').className = `w-1.5 h-1.5 rounded-full ${className}`;
+        };
+
+        window.saveTransaction = async (type, btnId) => {
+            if (!user) return;
+            const amtIn = document.getElementById(`${type==='income'?'inc':'exp'}Amount`);
+            const descIn = document.getElementById(`${type==='income'?'inc':'exp'}Desc`);
+            const dateIn = document.getElementById(`${type==='income'?'inc':'exp'}Date`);
+            const btn = document.getElementById(btnId);
+            
+            if (!amtIn.value || !descIn.value) return;
+            btn.disabled = true;
+
+            const { error } = await client.from('transactions').insert([{
+                user_id: user.id, type, amount: parseFloat(amtIn.value),
+                description: descIn.value, date: dateIn.value,
+                method: type === 'income' ? selectedIncMethod : selectedExpMethod
+            }]);
+
+            if (!error) {
+                amtIn.value = ''; descIn.value = '';
+                btn.disabled = false;
+                fetchTransactions();
+                switchView('dashboard');
+            }
+        };
+
+        window.deleteEntry = async (id) => {
+            if (confirm('Delete this record?')) {
+                await client.from('transactions').delete().eq('id', id);
+                fetchTransactions();
+            }
+        };
+
+        window.switchView = (viewId) => {
+            document.querySelectorAll('.view-content').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(`view-${viewId}`).classList.add('active');
+            document.querySelector(`.nav-item[data-view="${viewId}"]`).classList.add('active');
+            document.getElementById('viewTitle').textContent = viewId.charAt(0).toUpperCase() + viewId.slice(1);
+        };
+
+       window.setMethod = (type, method) => {
+    if (type === 'income') {
+        selectedIncMethod = method;
+
+        document.getElementById('incGpay').className =
+            method === 'gpay' ? 'method-btn active-income' : 'method-btn';
+
+        document.getElementById('incCash').className =
+            method === 'cash' ? 'method-btn active-income' : 'method-btn';
+
+        // 🔥 THIS LINE CHANGES BUTTON TEXT
+        document.getElementById('incSubmit').innerText =
+            `Save Income (${method === 'gpay' ? 'GPay' : 'Cash'})`;
+
+    } else {
+        selectedExpMethod = method;
+
+        document.getElementById('expGpay').className =
+            method === 'gpay' ? 'method-btn active-expense' : 'method-btn';
+
+        document.getElementById('expCash').className =
+            method === 'cash' ? 'method-btn active-expense' : 'method-btn';
+
+        // 🔥 THIS LINE CHANGES BUTTON TEXT
+        document.getElementById('expSubmit').innerText =
+            `Save Expense (${method === 'gpay' ? 'gpay' : 'Cash'})`;
+    }
+};
+        function updateUI() {
+            let balance = 0, tIn = 0, tOut = 0, gpay = 0, cash = 0;
+            const ledgerHTML = [...transactions].reverse().map(t => {
+                const a = parseFloat(t.amount);
+                if (t.type === 'income') { tIn += a; if (t.method === 'gpay') gpay += a; else cash += a; }
+                else { tOut += a; if (t.method === 'gpay') gpay -= a; else cash -= a; }
+                return `
+                <tr class="border-b">
+                    <td class="p-5 text-slate-500 text-xs">${t.date}</td>
+                    <td class="p-5 font-bold">${t.description}<br><span class="text-[8px] text-slate-400 uppercase">${t.method}</span></td>
+                    <td class="p-5 text-right font-bold text-emerald-500">${t.type==='income'?'₹'+a.toFixed(2):'—'}</td>
+                    <td class="p-5 text-right font-bold text-rose-500">${t.type==='expense'?'₹'+a.toFixed(2):'—'}</td>
+                    <td class="p-5 text-right font-black">₹${(tIn-tOut).toFixed(2)}</td>
+                    <td class="p-5 text-center no-print"><button onclick="deleteEntry('${t.id}')" class="text-slate-300 hover:text-rose-500"><i class="fa-solid fa-trash-can"></i></button></td>
+                </tr>`;
+            }).join('');
+
+            document.getElementById('dashBalance').textContent = '₹' + (tIn - tOut).toLocaleString('en-IN');
+            document.getElementById('dashIncome').textContent = '₹' + tIn.toLocaleString('en-IN');
+            document.getElementById('dashExpense').textContent = '₹' + tOut.toLocaleString('en-IN');
+            document.getElementById('dashGpay').textContent = '₹' + gpay.toLocaleString('en-IN');
+            document.getElementById('dashCash').textContent = '₹' + cash.toLocaleString('en-IN');
+            document.getElementById('ledgerBody').innerHTML = ledgerHTML;
+            updateChart();
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('expenseChart').getContext('2d');
+            const map = {};
+            transactions.filter(t => t.type === 'expense').forEach(t => map[t.description] = (map[t.description] || 0) + t.amount);
+            if (expenseChart) expenseChart.destroy();
+            expenseChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: { labels: Object.keys(map), datasets: [{ data: Object.values(map), backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ef4444'], borderRadius: 5 }] },
+                options: { maintainAspectRatio: false }
+            });
+        }
+
+        document.getElementById('incomeForm').onsubmit = (e) => { e.preventDefault(); saveTransaction('income', 'incSubmit'); };
+        document.getElementById('expForm').onsubmit = (e) => { e.preventDefault(); saveTransaction('expense', 'expSubmit'); };
+        
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('incDate').value = today;
+        document.getElementById('expDate').value = today;
+    </script>
+</body>
+</html>
