@@ -1,0 +1,21 @@
+{
+  "name": "Pro Finance Manager",
+  "short_name": "Pro Finance",
+  "description": "Manage your finances easily with Pro Finance Manager app.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
